@@ -15,9 +15,7 @@ html, body {
     font-family: monospace;
 }
 
-canvas {
-    display: block;
-}
+canvas { display: block; }
 
 #endScreen {
     position: fixed;
@@ -76,140 +74,143 @@ button {
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
-resize();
 
-window.addEventListener("resize", resize);
 function resize() {
     canvas.width = innerWidth;
     canvas.height = innerHeight;
 }
+resize();
+window.addEventListener("resize", resize);
 
-// ---------- Управление ----------
-let touchStart = null;
-canvas.addEventListener("touchstart", e => {
-    touchStart = e.touches[0];
-});
-canvas.addEventListener("touchmove", e => {
-    if (!touchStart) return;
-    const t = e.touches[0];
-    player.vx = (t.clientX - touchStart.clientX) * 0.02;
-    player.vy = (t.clientY - touchStart.clientY) * 0.02;
-    touchStart = t;
-});
-
-// ---------- Сущности ----------
+// ---------- Игрок ----------
 const player = {
-    x: 100, y: 100,
-    vx: 0, vy: 0,
-    speed: 3,
+    x: 0,
+    y: 0,
     step: 0
 };
 
+// ---------- Подарок ----------
 const gift = {
-    x: 300, y: 300,
-    vx: 4, vy: 4,
+    x: 0,
+    y: 0,
+    vx: 0,
+    vy: 0,
     speed: 6,
+    active: false
 };
 
 let snow = [];
-let confetti = [];
 let gameOver = false;
+let slowTimer = 0;
 
 // ---------- Инициализация ----------
 function init() {
     gameOver = false;
     snow = [];
-    confetti = [];
-    player.x = Math.random() * (canvas.width - 100) + 50;
-    player.y = Math.random() * (canvas.height - 100) + 50;
+    slowTimer = 0;
+
+    player.x = canvas.width / 2;
+    player.y = canvas.height / 2;
 
     do {
         gift.x = Math.random() * canvas.width;
         gift.y = Math.random() * canvas.height;
-    } while (Math.hypot(player.x - gift.x, player.y - gift.y) < 200);
+    } while (Math.hypot(player.x - gift.x, player.y - gift.y) < 250);
 
-    gift.vx = 4;
-    gift.vy = 4;
+    gift.vx = 0;
+    gift.vy = 0;
+    gift.speed = 6;
+    gift.active = false;
 }
 init();
 
-// ---------- Снег ----------
+// ---------- Снег (редкий и медленный) ----------
 function spawnSnow() {
-    snow.push({
-        x: Math.random() * canvas.width,
-        y: -10,
-        r: 4 + Math.random() * 4,
-        v: 0.5 + Math.random()
-    });
+    if (Math.random() < 0.02) {
+        snow.push({
+            x: Math.random() * canvas.width,
+            y: -10,
+            r: 5 + Math.random() * 4,
+            v: 0.2 + Math.random() * 0.3
+        });
+    }
 }
 
 // ---------- Рисование ----------
 function drawPlayer() {
-    ctx.fillStyle = "#aaa";
-    ctx.fillRect(player.x - 10, player.y - 14, 20, 28); // тело
-    ctx.fillRect(player.x - 6, player.y - 22, 12, 8); // голова
-    ctx.fillRect(player.x - 2, player.y - 26, 4, 4); // кнопка
+    player.step += 0.05;
+    const s = Math.sin(player.step) * 2;
 
-    player.step += 0.2;
-    const s = Math.sin(player.step) * 4;
+    // тело (синее)
+    ctx.fillStyle = "#1e4fff";
+    ctx.fillRect(player.x - 12, player.y - 10, 24, 30);
 
-    ctx.fillRect(player.x - 16, player.y - 8 + s, 6, 16); // руки
-    ctx.fillRect(player.x + 10, player.y - 8 - s, 6, 16);
-    ctx.fillRect(player.x - 8, player.y + 14 - s, 6, 14); // ноги
-    ctx.fillRect(player.x + 2, player.y + 14 + s, 6, 14);
+    // голова (жёлтая)
+    ctx.fillStyle = "#ffd800";
+    ctx.fillRect(player.x - 10, player.y - 24, 20, 14);
+
+    // кнопка
+    ctx.fillStyle = "#ccc";
+    ctx.fillRect(player.x - 3, player.y - 30, 6, 6);
+
+    // руки (жёлтые)
+    ctx.fillStyle = "#ffd800";
+    ctx.fillRect(player.x - 20, player.y - 6 + s, 8, 18);
+    ctx.fillRect(player.x + 12, player.y - 6 - s, 8, 18);
+
+    // ноги (синие)
+    ctx.fillStyle = "#1e4fff";
+    ctx.fillRect(player.x - 10, player.y + 20 - s, 8, 16);
+    ctx.fillRect(player.x + 2, player.y + 20 + s, 8, 16);
 }
 
 function drawGift() {
     ctx.fillStyle = "red";
     ctx.fillRect(gift.x - 12, gift.y - 12, 24, 24);
+
     ctx.fillStyle = "gold";
     ctx.fillRect(gift.x - 2, gift.y - 12, 4, 24);
     ctx.fillRect(gift.x - 12, gift.y - 2, 24, 4);
 
-    // ножки
-    ctx.fillStyle = "#aaa";
-    ctx.fillRect(gift.x - 10, gift.y + 12, 6, 10);
-    ctx.fillRect(gift.x + 4, gift.y + 12, 6, 10);
+    if (gift.active) {
+        ctx.fillStyle = "#aaa";
+        ctx.fillRect(gift.x - 10, gift.y + 12, 6, 10);
+        ctx.fillRect(gift.x + 4, gift.y + 12, 6, 10);
+    }
 }
 
 // ---------- Обновление ----------
-let slowTimer = 0;
-
 function update(dt) {
     spawnSnow();
 
-    // игрок
-    player.x += player.vx;
-    player.y += player.vy;
-    player.x = Math.max(0, Math.min(canvas.width, player.x));
-    player.y = Math.max(0, Math.min(canvas.height, player.y));
-
-    // подарок
     const dx = gift.x - player.x;
     const dy = gift.y - player.y;
     const dist = Math.hypot(dx, dy);
 
-    if (dist < 200) {
+    // активация подарка
+    if (dist < 200 && !gift.active) {
+        gift.active = true;
+    }
+
+    if (gift.active) {
         gift.vx = (dx / dist) * gift.speed;
         gift.vy = (dy / dist) * gift.speed;
+
+        gift.x += gift.vx;
+        gift.y += gift.vy;
+
+        if (gift.x < 0 || gift.x > canvas.width) gift.vx *= -1;
+        if (gift.y < 0 || gift.y > canvas.height) gift.vy *= -1;
+
+        slowTimer += dt;
+        if (slowTimer > 2000) {
+            gift.speed *= 0.9;
+            slowTimer = 0;
+        }
     }
 
-    gift.x += gift.vx;
-    gift.y += gift.vy;
-
-    if (gift.x < 0 || gift.x > canvas.width) gift.vx *= -1;
-    if (gift.y < 0 || gift.y > canvas.height) gift.vy *= -1;
-
-    slowTimer += dt;
-    if (slowTimer > 2000) {
-        gift.speed *= 0.9;
-        slowTimer = 0;
-    }
-
-    // столкновение
     if (dist < 20) endGame();
 
-    // снег
     snow.forEach(s => s.y += s.v);
     snow = snow.filter(s => s.y < canvas.height + 20);
 }
@@ -231,14 +232,14 @@ function loop(t) {
     const dt = t - last;
     last = t;
 
-    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (!gameOver) {
         update(dt);
+
         ctx.fillStyle = "white";
-        snow.forEach(s => {
-            ctx.fillRect(s.x, s.y, s.r, s.r);
-        });
+        snow.forEach(s => ctx.fillRect(s.x, s.y, s.r, s.r));
+
         drawGift();
         drawPlayer();
     }
